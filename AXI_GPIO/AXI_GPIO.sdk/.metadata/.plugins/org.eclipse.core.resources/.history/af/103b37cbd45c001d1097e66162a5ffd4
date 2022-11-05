@@ -1,0 +1,302 @@
+// --------------------------------------------------------------------
+//
+// Permission:
+//
+//   MicroPhase grants permission to use and modify this code for use
+//   in synthesis for all MicroPhase Development Boards.
+//   Other use of this code, including the selling
+//   ,duplication, or modification of any portion is strictly prohibited.
+//
+// Disclaimer:
+//
+//   This VHDL/Verilog or C/C++ source code is intended as a design reference
+//   which illustrates how these types of functions can be implemented.
+//   It is the user's responsibility to verify their design for
+//   consistency and functionality through the use of formal
+//   verification methods.  MicroPhase provides no warranty regarding the use
+//   or functionality of this code.
+//
+// --------------------------------------------------------------------
+//
+//                     MicroPhase Technologies Inc
+//                     Shanghai, China
+//
+//                     web: http://www.microphase.cn/
+//                     email: support@microphase.cn
+//
+// --------------------------------------------------------------------
+// --------------------------------------------------------------------
+//
+// Major Functions:
+//
+// --------------------------------------------------------------------
+// --------------------------------------------------------------------
+//
+//  Revision History:
+//  Date          By            Revision    Change	 Description
+//---------------------------------------------------------------------
+//2020-02-22      	Wang 		1.0          		Original
+//2020-                         1.1
+// --------------------------------------------------------------------
+// --------------------------------------------------------------------
+#include "flash_wr.h"
+
+
+static XQspiPs QspiInstance;
+int Test = 5;
+
+u8 ReadBuffer[MAX_DATA + DATA_OFFSET + DUMMY_SIZE];
+u8 WriteBuffer[PAGE_SIZE + DATA_OFFSET];
+//PS端GPIO
+
+
+
+/*******************/
+
+int QspiFlashPolledExample(XQspiPs *QspiInstancePtr, u16 QspiDeviceId)
+{
+	int Status;
+	u8 *BufferPtr;
+	u8 UniqueValue;
+	int Count;
+	int Page;
+	XQspiPs_Config *QspiConfig;
+
+	/* Initialize the QSPI driver so that it's ready to use*/
+	QspiConfig = XQspiPs_LookupConfig(QspiDeviceId);
+	if (QspiConfig == NULL) {
+		return XST_FAILURE;
+	}
+
+	Status = XQspiPs_CfgInitialize(QspiInstancePtr, QspiConfig,
+					QspiConfig->BaseAddress);
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	/* Perform a self-test to check hardware build*/
+	Status = XQspiPs_SelfTest(QspiInstancePtr);
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	for (UniqueValue = UNIQUE_VALUE, Count = 0; Count < PAGE_SIZE;
+	     Count++, UniqueValue++) {
+		WriteBuffer[DATA_OFFSET + Count] = (u8)(UniqueValue + Test);
+	}
+	memset(ReadBuffer, 0x00, sizeof(ReadBuffer));
+
+	//设置手动启动和手动片选模式
+	XQspiPs_SetOptions(QspiInstancePtr, XQSPIPS_MANUAL_START_OPTION |
+			XQSPIPS_FORCE_SSELECT_OPTION |
+			XQSPIPS_HOLD_B_DRIVE_OPTION);
+
+	// 设置时钟分频系数
+	XQspiPs_SetClkPrescaler(QspiInstancePtr, XQSPIPS_CLK_PRESCALE_8);
+
+	/* Assert the FLASH chip select.*/
+	XQspiPs_SetSlaveSelect(QspiInstancePtr);
+
+
+	FlashReadID();
+
+	FlashQuadEnable(QspiInstancePtr);
+
+	/* 擦除 flash.*/
+	FlashErase(QspiInstancePtr, TEST_ADDRESS, MAX_DATA);
+
+	//向Flash中写入数据
+	for (Page = 0; Page < PAGE_COUNT; Page++) {
+		FlashWrite(QspiInstancePtr, (Page * PAGE_SIZE) + TEST_ADDRESS,
+			   PAGE_SIZE, WRITE_CMD);
+	}
+
+	//使用普通读取命令读出数据
+	FlashRead(QspiInstancePtr, TEST_ADDRESS, MAX_DATA, READ_CMD);
+
+	BufferPtr = &ReadBuffer[DATA_OFFSET];
+
+	for (UniqueValue = UNIQUE_VALUE, Count = 0; Count < MAX_DATA;
+	     Count++, UniqueValue++) {
+		if (BufferPtr[Count] != (u8)(UniqueValue + Test)) {
+			return XST_FAILURE;
+		}
+	}
+	//使用快速读取命令读出数据
+	memset(ReadBuffer, 0x00, sizeof(ReadBuffer));
+	FlashRead(QspiInstancePtr, TEST_ADDRESS, MAX_DATA, FAST_READ_CMD);
+
+	BufferPtr = &ReadBuffer[DATA_OFFSET + DUMMY_SIZE];
+
+	for (UniqueValue = UNIQUE_VALUE, Count = 0; Count < MAX_DATA;
+	     Count++, UniqueValue++) {
+		if (BufferPtr[Count] != (u8)(UniqueValue + Test)) {
+			return XST_FAILURE;
+		}
+	}
+
+	//使用双重读取命令读取数据
+	memset(ReadBuffer, 0x00, sizeof(ReadBuffer));
+	FlashRead(QspiInstancePtr, TEST_ADDRESS, MAX_DATA, DUAL_READ_CMD);
+	BufferPtr = &ReadBuffer[DATA_OFFSET + DUMMY_SIZE];
+
+	for (UniqueValue = UNIQUE_VALUE, Count = 0; Count < MAX_DATA;
+	     Count++, UniqueValue++) {
+		if (BufferPtr[Count] != (u8)(UniqueValue + Test)) {
+			return XST_FAILURE;
+		}
+	}
+	//使用块读取命令读取数据
+	memset(ReadBuffer, 0x00, sizeof(ReadBuffer));
+	FlashRead(QspiInstancePtr, TEST_ADDRESS, MAX_DATA, QUAD_READ_CMD);
+
+	BufferPtr = &ReadBuffer[DATA_OFFSET + DUMMY_SIZE];
+
+	for (UniqueValue = UNIQUE_VALUE, Count = 0; Count < MAX_DATA;
+	     Count++, UniqueValue++) {
+		if (BufferPtr[Count] != (u8)(UniqueValue + Test)) {
+			return XST_FAILURE;
+		}
+	}
+
+	return XST_SUCCESS;
+}
+
+void FlashWrite(XQspiPs *QspiPtr, u32 Address, u32 ByteCount, u8 Command)
+{
+	u8 WriteEnableCmd = { WRITE_ENABLE_CMD };
+	u8 ReadStatusCmd[] = { READ_STATUS_CMD, 0 };  /* must send 2 bytes */
+	u8 FlashStatus[2];
+
+
+	XQspiPs_PolledTransfer(QspiPtr, &WriteEnableCmd, NULL,
+				sizeof(WriteEnableCmd));
+
+	WriteBuffer[COMMAND_OFFSET]   = Command;
+	WriteBuffer[ADDRESS_1_OFFSET] = (u8)((Address & 0xFF0000) >> 16);
+	WriteBuffer[ADDRESS_2_OFFSET] = (u8)((Address & 0xFF00) >> 8);
+	WriteBuffer[ADDRESS_3_OFFSET] = (u8)(Address & 0xFF);
+
+	XQspiPs_PolledTransfer(QspiPtr, WriteBuffer, NULL,
+				ByteCount + OVERHEAD_SIZE);
+
+	while (1) {
+		XQspiPs_PolledTransfer(QspiPtr, ReadStatusCmd, FlashStatus,
+					sizeof(ReadStatusCmd));
+		if ((FlashStatus[1] & 0x01) == 0) {
+			break;
+		}
+	}
+}
+
+void FlashRead(XQspiPs *QspiPtr, u32 Address, u32 ByteCount, u8 Command)
+{
+	WriteBuffer[COMMAND_OFFSET]   = Command;
+	WriteBuffer[ADDRESS_1_OFFSET] = (u8)((Address & 0xFF0000) >> 16);
+	WriteBuffer[ADDRESS_2_OFFSET] = (u8)((Address & 0xFF00) >> 8);
+	WriteBuffer[ADDRESS_3_OFFSET] = (u8)(Address & 0xFF);
+
+	if ((Command == FAST_READ_CMD) || (Command == DUAL_READ_CMD) ||
+	    (Command == QUAD_READ_CMD)) {
+		ByteCount += DUMMY_SIZE;
+	}
+	XQspiPs_PolledTransfer(QspiPtr, WriteBuffer, ReadBuffer,
+				ByteCount + OVERHEAD_SIZE);
+}
+
+void FlashErase(XQspiPs *QspiPtr, u32 Address, u32 ByteCount)
+{
+	u8 WriteEnableCmd = { WRITE_ENABLE_CMD };
+	u8 ReadStatusCmd[] = { READ_STATUS_CMD, 0 };  /* must send 2 bytes */
+	u8 FlashStatus[2];
+	int Sector;
+
+	if (ByteCount == (NUM_SECTORS * SECTOR_SIZE)) {
+		XQspiPs_PolledTransfer(QspiPtr, &WriteEnableCmd, NULL,
+				  sizeof(WriteEnableCmd));
+		WriteBuffer[COMMAND_OFFSET]   = BULK_ERASE_CMD;
+		XQspiPs_PolledTransfer(QspiPtr, WriteBuffer, NULL,
+					BULK_ERASE_SIZE);
+
+		while (1) {
+			XQspiPs_PolledTransfer(QspiPtr, ReadStatusCmd,
+						FlashStatus,
+						sizeof(ReadStatusCmd));
+			if ((FlashStatus[1] & 0x01) == 0) {
+				break;
+			}
+		}
+		return;
+	}
+
+	for (Sector = 0; Sector < ((ByteCount / SECTOR_SIZE) + 1); Sector++) {
+		XQspiPs_PolledTransfer(QspiPtr, &WriteEnableCmd, NULL,
+					sizeof(WriteEnableCmd));
+
+		WriteBuffer[COMMAND_OFFSET]   = SEC_ERASE_CMD;
+		WriteBuffer[ADDRESS_1_OFFSET] = (u8)(Address >> 16);
+		WriteBuffer[ADDRESS_2_OFFSET] = (u8)(Address >> 8);
+		WriteBuffer[ADDRESS_3_OFFSET] = (u8)(Address & 0xFF);
+
+		XQspiPs_PolledTransfer(QspiPtr, WriteBuffer, NULL,
+					SEC_ERASE_SIZE);
+
+		while (1) {
+			XQspiPs_PolledTransfer(QspiPtr, ReadStatusCmd,
+						FlashStatus,
+						sizeof(ReadStatusCmd));
+
+			if ((FlashStatus[1] & 0x01) == 0) {
+				break;
+			}
+		}
+
+		Address += SECTOR_SIZE;
+	}
+}
+
+int FlashReadID(void)
+{
+	int Status;
+
+	/* Read ID in Auto mode.*/
+	WriteBuffer[COMMAND_OFFSET]   = READ_ID;
+	WriteBuffer[ADDRESS_1_OFFSET] = 0x23;		/* 3 dummy bytes */
+	WriteBuffer[ADDRESS_2_OFFSET] = 0x08;
+	WriteBuffer[ADDRESS_3_OFFSET] = 0x09;
+
+	Status = XQspiPs_PolledTransfer(&QspiInstance, WriteBuffer, ReadBuffer,
+				RD_ID_SIZE);
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+
+	xil_printf("FlashID=0x%x 0x%x 0x%x\n\r", ReadBuffer[1], ReadBuffer[2],
+		   ReadBuffer[3]);
+
+	return XST_SUCCESS;
+}
+
+void FlashQuadEnable(XQspiPs *QspiPtr)
+{
+	u8 WriteEnableCmd = {WRITE_ENABLE_CMD};
+	u8 ReadStatusCmd[] = {READ_STATUS_CMD, 0};
+	u8 QuadEnableCmd[] = {WRITE_STATUS_CMD, 0};
+	u8 FlashStatus[2];
+
+	if (ReadBuffer[1] == 0x9D) {
+
+		XQspiPs_PolledTransfer(QspiPtr, ReadStatusCmd,
+					FlashStatus,
+					sizeof(ReadStatusCmd));
+
+		QuadEnableCmd[1] = FlashStatus[1] | 1 << 6;
+
+		XQspiPs_PolledTransfer(QspiPtr, &WriteEnableCmd, NULL,
+				  sizeof(WriteEnableCmd));
+
+		XQspiPs_PolledTransfer(QspiPtr, QuadEnableCmd, NULL,
+					sizeof(QuadEnableCmd));
+	}
+}
+

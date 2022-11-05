@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.ip_user_files\mem_init_files" key="debug_files_selection"/>
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\fsbl\bootimage" key="zynq_flash_files_selection"/>
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk" key="hwspec_file_selection"/>
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\fsbl\bootimage" key="last_stored_selection"/>
+</section>

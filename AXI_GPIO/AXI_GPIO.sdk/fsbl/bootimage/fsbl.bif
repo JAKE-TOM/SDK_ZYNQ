@@ -1,0 +1,6 @@
+//arch = zynq; split = false; format = BIN
+the_ROM_image:
+{
+	[bootloader]F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\fsbl\Debug\fsbl.elf
+	F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\AXI_GPIO_wrapper_hw_platform_0\AXI_GPIO_wrapper.bit
+}

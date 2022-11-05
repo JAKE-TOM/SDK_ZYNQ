@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item value="AXI_GPIO_wrapper_hw_platform_0" key="programflash.hwplatform"/>
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\fsbl\bootimage\BOOT.bin" key="AXI_GPIO_wrapper_hw_platform_0-imgFile"/>
+	<item value="" key="AXI_GPIO_wrapper_hw_platform_0-offSet"/>
+	<item value="qspi-x4-single" key="AXI_GPIO_wrapper_hw_platform_0-flashType"/>
+	<item value="false" key="AXI_GPIO_wrapper_hw_platform_0-blankCheck"/>
+	<item value="F:\FPGA\5_AXI_GPIO\AXI_GPIO\AXI_GPIO.sdk\fsbl\Debug\fsbl.elf" key="AXI_GPIO_wrapper_hw_platform_0-fsblFile"/>
+	<item value="false" key="AXI_GPIO_wrapper_hw_platform_0-verifyFlash"/>
+	<item value="Auto Detect" key="AXI_GPIO_wrapper_hw_platform_0-device"/>
+	<item value="Local" key="AXI_GPIO_wrapper_hw_platform_0-target"/>
+</section>
